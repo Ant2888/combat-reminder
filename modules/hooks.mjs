@@ -124,8 +124,8 @@ export default function registerReminderHooks() {
 
     chatData.type = CONST.CHAT_MESSAGE_TYPES.OOC;
     chatData.speaker.alias = "RemindMe!";
-    chatData.content = description +
-                       "<br>Reminding you in: " + duration_match[1] +
+    chatData.content = "<blockquote>" + description + "</blockquote>" +
+                       "<hr>Reminding you in: " + duration_match[1] +
                        (duration_match[2][0] == 'r' ? " round(s)" : " turn(s)");
 
     const cls = ChatMessage.implementation;
