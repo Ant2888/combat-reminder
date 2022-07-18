@@ -49,21 +49,19 @@ export default class CombatReminder extends Application {
 
   // Resets round counts to 0, optionally firing the alerts.
   resetData(combat_data, fire_alerts = false) {
-    if (!combatData)
+    if (!combat_data)
       return;
 
-    if (!fire_alerts) {
-      delete this.encounters[combat_data._id];
-    }
-
-    let encounter = this.encounters[combatData._id];
+    let encounter = this.encounters[combat_data._id];
     if (!encounter)
       return;
 
-    while (encounter.reminder_heap.size() > 0) {
-      this.fireAlert(encounter.reminder_heap.pop());
+    if (fire_alerts) {
+      while (encounter.reminder_heap.size() > 0) {
+        this.fireAlert(encounter.reminder_heap.pop());
+      }
     }
-    delete this.encounters[combatData._id];
+    delete this.encounters[combat_data._id];
   }
 
   renormalizeRounds(encounter, new_round, new_turn, num_players) {
@@ -102,7 +100,8 @@ export default class CombatReminder extends Application {
         'current_turn' :
             CombatReminder.cumulativeTurnsFromOrder(round, turn, num_players),
         'reminder_heap' :
-            new Heap((a, b) => { return b.end_turn - a.end_turn; })
+            new Heap((a, b) => { return a.end_turn - b.end_turn; }),
+        'combat_id' : combat.data._id
       };
       return;
     }
@@ -120,17 +119,43 @@ export default class CombatReminder extends Application {
     }
   }
 
-  queueReminder(combat, duration, in_rounds, description, chat_id) {
-    console.error("Failed to bind to chat id; description=" + description);
+  // Dequeuing is really slow, technically n^2lgn due to arbitrarily pulling out
+  // N elements from a heap, while keeping it sorted.
+  //
+  // A good heap implementation can actually do this in nlgn but this can not
+  // :).
+  dequeReminderById(message) {
+    if (message?.alias !== "RemindMe!" || !message.data)
+      return;
+
+    for (var property in this.encounters) {
+      var indexToDeque =
+          this.encounters[property].reminder_heap.nodes.findIndex(
+              node => node.chat_id === message.data._id);
+      if (indexToDeque !== -1) {
+        this.encounters[property].reminder_heap.nodes.splice(indexToDeque);
+        this.encounters[property].reminder_heap.heapify();
+        break;
+      }
+    }
+  }
+
+  queueReminder(combat, duration, trigger_time, in_rounds, description,
+                chat_id) {
+    if (!chat_id) {
+      console.error("Failed to bind to chat id; description=" + description);
+    }
     if (!this.encounters[combat.data._id])
       this.updateRound(combat);
 
     let encounter = this.encounters[combat.data._id];
-    const turns = in_rounds ? duration * encounter.players : duration;
+    let turns = in_rounds ? duration * encounter.players : duration;
+    if (trigger_time === "end")
+      turns++;
     encounter.reminder_heap.push({
       'end_turn' : encounter.current_turn + turns,
       'description' : description,
-      'chat_id' : chat_id
+      'chat_id' : chat_id,
     });
   }
 }

@@ -31,6 +31,10 @@ export default function registerReminderHooks() {
     ui.combatReminder.updateRound(combat);
   });
 
+  Hooks.on("deleteChatMessage",
+           (message, options,
+            id) => { ui.combatReminder.dequeReminderById(message); });
+
   Hooks.on("chatMessage", (chatLog, message, chatData, user, speaker) => {
     // The syntax for a reminder is:
     //   /remindme <duration> [-t <begin|end>] [-r] <description>
@@ -123,8 +127,8 @@ export default function registerReminderHooks() {
     const cls = ChatMessage.implementation;
     cls.create(chatData, {}).then((chat_msg) => {
       ui.combatReminder.queueReminder(game.combat, parseInt(duration_match[1]),
-                                      duration_match[2][0] === 'r', description,
-                                      chat_msg?.data?._id);
+                                      trigger, duration_match[2][0] === 'r',
+                                      description, chat_msg?.data?._id);
     });
     return false;
   });
