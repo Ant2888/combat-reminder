@@ -12,7 +12,6 @@ export default function registerReminderHooks() {
       type : AboutApp,
       restricted : false
     });
-    CONFIG.debug.hooks = true;
   });
 
   Hooks.on("ready", () => { CombatReminder.appReady(); });

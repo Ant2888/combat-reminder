@@ -44,7 +44,37 @@ export default class CombatReminder extends Application {
     if (!to_fire)
       return;
 
-    alert(to_fire.description ?? "something happened (lost details)");
+    const cls = ChatMessage.implementation;
+    if (!cls) {
+      alert(to_fire.description ?? "something happened (lost details)");
+    }
+
+    const random_phrases = [
+      "Time's up!",
+      "Hey, just reminding you!",
+      "I thought you should know...",
+      "Grondor grondor!",
+      "SMASHING!",
+      "**traveler nods silently**",
+      "Time for some more wild magic?",
+    ];
+
+    let chatData = {
+      'type' : CONST.CHAT_MESSAGE_TYPES.OOC,
+      'user' : game.userId
+    };
+    chatData.content =
+        random_phrases[Math.floor(Math.random() * random_phrases.length)] +
+        "<br><br>It's been: " + to_fire.round_text +
+        "<hr><i>Reminder Text</i><blockquote>" + to_fire.description +
+        "</blockquote>";
+    chatData.speaker = {
+      'actor' : null,
+      'alias' : "RemindMe!",
+      'scene' : game.combat?.data.scene,
+      'token' : null
+    };
+    cls.create(chatData, {});
   }
 
   // Resets round counts to 0, optionally firing the alerts.
@@ -156,6 +186,7 @@ export default class CombatReminder extends Application {
       'end_turn' : encounter.current_turn + turns,
       'description' : description,
       'chat_id' : chat_id,
+      'round_text' : "" + duration + (in_rounds ? " round(s)" : " turn(s)")
     });
   }
 }
