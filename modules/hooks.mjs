@@ -17,27 +17,18 @@ export default function registerReminderHooks() {
 
   Hooks.on("ready", () => { CombatReminder.appReady(); });
 
-  Hooks.on("createCombat", async (combat, createData, options, userId) => {
-    if (!ui.combatReminder)
-      return;
-  });
-
   Hooks.on("deleteCombat", async (combat, options, userId) => {
-    if (!ui.combatReminder)
+    if (!ui.combatReminder || !combat?.data)
       return;
 
-    if (!game.combat) {
-      ui.combatReminder.resetData(true);
-    }
+    ui.combatReminder.resetData(combat?.data, true);
   });
 
   Hooks.on("updateCombat", (combat, update, options, userId) => {
-    if (!ui.combatReminder || !game.combat || !combat?.turns?.length ||
-        combat.current.round === null)
+    if (!ui.combatReminder || !combat?.data)
       return;
 
-    ui.combatReminder.updateRound(combat.current.round, combat.current.turn,
-                                  combat.turns);
+    ui.combatReminder.updateRound(combat);
   });
 
   Hooks.on("chatMessage", (chatLog, message, chatData, user, speaker) => {
@@ -117,11 +108,12 @@ export default function registerReminderHooks() {
       console.error("Remindme: not in combat!");
       return false;
     }
+    if (game.combat.current.round === null) {
+      console.error("Remindme: combat not started!");
+      return false;
+    }
 
     let description = message.slice(index, message.length).join(" ");
-    ui.combatReminder.queueReminder(parseInt(duration_match[1]),
-                                    duration_match[2][0] == 'r', description);
-
     chatData.type = CONST.CHAT_MESSAGE_TYPES.OOC;
     chatData.speaker.alias = "RemindMe!";
     chatData.content = "<blockquote>" + description + "</blockquote>" +
@@ -129,7 +121,11 @@ export default function registerReminderHooks() {
                        (duration_match[2][0] == 'r' ? " round(s)" : " turn(s)");
 
     const cls = ChatMessage.implementation;
-    cls.create(chatData, {});
+    cls.create(chatData, {}).then((chat_msg) => {
+      ui.combatReminder.queueReminder(game.combat, parseInt(duration_match[1]),
+                                      duration_match[2][0] === 'r', description,
+                                      chat_msg?.data?._id);
+    });
     return false;
   });
 }

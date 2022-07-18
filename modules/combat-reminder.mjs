@@ -4,10 +4,7 @@ export default class CombatReminder extends Application {
   constructor(options = {}) {
     super(options);
 
-    this.players = 0;
-    this.current_turn = 0;
-    this.reminders =
-        new Heap(function(a, b) { return b.end_turn - a.end_turn; });
+    this.encounters = {};
   }
 
   // @override
@@ -44,57 +41,96 @@ export default class CombatReminder extends Application {
 
   async fireAlert(to_fire) {
     console.log(to_fire);
-    if (to_fire === undefined || to_fire === null)
+    if (!to_fire)
       return;
 
     alert(to_fire.description ?? "something happened (lost details)");
   }
 
   // Resets round counts to 0, optionally firing the alerts.
-  resetData(fire_alerts = false) {
-    this.players = 0;
-    this.current_turn = 0;
+  resetData(combat_data, fire_alerts = false) {
+    if (!combatData)
+      return;
+
     if (!fire_alerts) {
-      this.reminders =
-          new Heap(function(a, b) { return b.end_turn - a.end_turn; });
+      delete this.encounters[combat_data._id];
+    }
+
+    let encounter = this.encounters[combatData._id];
+    if (!encounter)
+      return;
+
+    while (encounter.reminder_heap.size() > 0) {
+      this.fireAlert(encounter.reminder_heap.pop());
+    }
+    delete this.encounters[combatData._id];
+  }
+
+  renormalizeRounds(encounter, new_round, new_turn, num_players) {
+    if (!encounter || num_players === encounter.players)
+      return;
+
+    encounter.reminder_heap.toArray().forEach(function(elem) {
+      const {round, turn} = CombatReminder.orderFromCumulativeTurns(
+          encounter.players, elem.end_turn);
+      elem.end_turn =
+          CombatReminder.cumulativeTurnsFromOrder(round, turn, num_players);
+    });
+
+    encounter.current_turn = CombatReminder.cumulativeTurnsFromOrder(
+        new_round, new_turn, num_players);
+    encounter.players = num_players;
+    encounter.reminder_heap.heapify();
+  }
+
+  updateRound(combat) {
+    // If the combat is invalid, not the focus OR hasn't started, don't update
+    // anything.
+    if (!combat || !combat.data.active || combat.current.round === null) {
       return;
     }
 
-    while (this.reminders.size() > 0) {
-      this.fireAlert(this.reminders.pop());
+    const round = combat.current.round;
+    const turn = combat.current.turn;
+    const num_players = combat.turns.length ? combat.turns.length : 1;
+
+    // If we haven't seen this encounter before, create it.
+    let encounter = this.encounters[combat.data._id];
+    if (!encounter) {
+      this.encounters[combat.data._id] = {
+        'players' : num_players,
+        'current_turn' :
+            CombatReminder.cumulativeTurnsFromOrder(round, turn, num_players),
+        'reminder_heap' :
+            new Heap((a, b) => { return b.end_turn - a.end_turn; })
+      };
+      return;
+    }
+
+    if (encounter.players != num_players) {
+      this.renormalizeRounds(encounter, round, turn, num_players);
+    } else {
+      encounter.current_turn =
+          CombatReminder.cumulativeTurnsFromOrder(round, turn, num_players);
+    }
+
+    while (encounter.reminder_heap.size() > 0 &&
+           encounter.reminder_heap.peek().end_turn <= encounter.current_turn) {
+      this.fireAlert(encounter.reminder_heap.pop());
     }
   }
 
-  // Advances the current round of combat, firing any alerts.
-  updateRound(round, turn, players) {
-    // If the # of players change, we need to normalize the rounds.
-    if (this.players != players) {
-      this.reminders.toArray().forEach(function(elem) {
-        const {round, turn} = CombatReminder.orderFromCumulativeTurns(
-            this.players, elem.end_turn);
-        elem.end_turn =
-            CombatReminder.cumulativeTurnsFromOrder(round, turn, players);
-      });
+  queueReminder(combat, duration, in_rounds, description, chat_id) {
+    console.error("Failed to bind to chat id; description=" + description);
+    if (!this.encounters[combat.data._id])
+      this.updateRound(combat);
 
-      const {round, turn} = CombatReminder.orderFromCumulativeTurns(
-          this.players, this.current_turn);
-      this.current_turn =
-          CombatReminder.cumulativeTurnsFromOrder(round, turn, this.players);
-
-      this.players = players;
-      this.reminders.heapify();
-    }
-
-    while (this.reminders.size() > 0 &&
-           this.reminders.peek().end_turn <=
-               CombatReminder.cumulativeTurnsFromOrder(round, turn, players)) {
-      this.fireAlert(this.reminders.pop());
-    }
-  }
-
-  queueReminder(duration, in_rounds, description) {
-    const turns = in_rounds ? duration * this.players : duration;
-    this.reminders.push(
-        {'end_turn' : this.current_turn + turns, 'description' : description});
+    let encounter = this.encounters[combat.data._id];
+    const turns = in_rounds ? duration * encounter.players : duration;
+    encounter.reminder_heap.push({
+      'end_turn' : encounter.current_turn + turns,
+      'description' : description,
+      'chat_id' : chat_id
+    });
   }
 }
