@@ -1,0 +1,19 @@
+{
+  "name": "combat-reminder",
+  "title": "Combat Reminder - Reminds you of actions in combat!",
+  "description": "A tool that will remind a given player over a specified period of time during combat. Useful for tracking buff expirations.",
+  "author": "Wallum",
+  "version": "1.0.0",
+  "minimumCoreVersion": "9",
+  "dependencies": [
+    {
+      "name": "combat-carousel"
+    }
+  ],
+  "scripts": [
+   "./libs/heap.js"
+],
+  "esmodules": [
+    "./init.js"
+  ]
+}
